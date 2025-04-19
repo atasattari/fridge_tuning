@@ -2,4 +2,5 @@
 credentials.txt
 *.jpg
 *.txt
+__pycache__/
 
