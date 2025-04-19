@@ -90,7 +90,7 @@ def make_plot(data, step_index):
     ax[0].set_xticklabels(tick_labels, rotation=90, ha='center')
 
     
-    ax[1].plot(data['timestamp_h'], data['T5'], c = 'black')
+    ax[1].plot(data['timestamp_h'], data['T3'], c = 'black')
     ax[1].set_ylabel('MC-temperature [mK]')
     ax[1].set_xlabel('Time')
     ax[1].set_xticks(tick_positions)  # Set only desired ticks
@@ -225,7 +225,9 @@ def get_temp_data(time_array):
     
     return temp_down, temp_up
 
-get_xy = lambda window: ((window['timestamp_s']-window['timestamp_s'].min()).to_numpy(),window['T5'].to_numpy())
+switch_names = {'RuOx':'T3',
+                'CMN': 'T5'}
+get_xy = lambda window, sensor: ((window['timestamp_s']-window['timestamp_s'].min()).to_numpy(),window[switch_names[sensor]].to_numpy())
 
 def saturating_exp(x, a, b, c):
     return a-b*np.exp(c*x)
@@ -341,9 +343,9 @@ def do_fit_downward(fit_func,
     ax.set_ylim(5, 30)    
     return params, extra_time, temp_unc
 
-def extract_mc_cmn_values(filepath):
+def extract_mc_values(filepath,sensor='RuOx'):
     """
-    Extracts all 'MC [mK](CMN)' values from a text file.
+    Extracts all 'MC [mK](...)' values from a text file.
 
     Parameters:
         filepath (str): Path to the text file.
@@ -351,20 +353,26 @@ def extract_mc_cmn_values(filepath):
     Returns:
         List[float]: A list of MC [mK](CMN) values as floats.
     """
-    cmn_values = []
+    values = []
     
     with open(filepath, 'r') as file:
         for line in file:
-            if '-- MC [mK](CMN):' in line:
+            if f'-- MC [mK]({sensor}):' in line:
                 # Extract the value after the colon and strip whitespace
                 value_str = line.split(':')[1].strip()
                 try:
                     value = float(value_str)
-                    cmn_values.append(value)
+                    values.append(value)
                 except ValueError:
                     print(f"Warning: could not convert '{value_str}' to float.")
     
-    return cmn_values
+    return values
+
+
+
+
+
+
 
 def fit_quadratic_and_plot(x, 
                            y, 
@@ -389,9 +397,9 @@ def fit_quadratic_and_plot(x,
     ax.scatter(x_eval, y_eval, color='black', zorder=5, label=f'Fit')
     ax.axvline(x_eval, linestyle='--', color='gray', alpha=0.5)
     ax.axhline(y_eval, linestyle='--', color='gray', alpha=0.5)
-    ax.text(20,y_eval,f'{y_eval:.02f} mW')
+    ax.text(20,y_eval,f'{y_eval:.02f} $\\mu$W')
     ax.set_xlabel('MC temprature [mK]')
-    ax.set_ylabel('MC power [mW]')
+    ax.set_ylabel('MC power [$\\mu$W]')
     ax.set_ylim(0,500)
     ax.set_xlim(0,150)
     ax.set_title(title)
