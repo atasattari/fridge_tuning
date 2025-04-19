@@ -7,6 +7,50 @@ import pandas
 import pytz
 from scipy.optimize import curve_fit
 from zoneinfo import ZoneInfo
+import os
+
+
+def time_since(timestr: str) -> float:
+    """
+    Given a string like "Time: 2025-04-17 03:19:42 EDT",
+    return how many hours ago that was.
+    """
+    # Define EDT as UTC-4
+    edt = timezone(timedelta(hours=-4))
+    
+    # Extract and parse the datetime
+    dt_str = timestr.replace("Time:", "").replace("EDT", "").strip()
+    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=edt)
+    
+    # Get current time in EDT
+    now = datetime.now(edt)
+    
+    # Time difference in hours
+    delta = now - dt
+    return delta.total_seconds() / 3600
+
+def write_csv(csv_file,row):
+    """
+    The current log is in csv_file 
+    row is a python dictionary with new information that goes into a single line
+    """
+    new_df = pandas.DataFrame([row])
+    new_df['time'] = pandas.to_datetime(new_df['time']).dt.tz_convert('America/Toronto')
+    
+    if os.path.exists(csv_file):
+        df = pandas.read_csv(csv_file)
+        # Convert 'time' column to datetime with timezone if not already
+        df['time'] = pandas.to_datetime(df['time']).dt.tz_convert('America/Toronto')
+    
+
+        if (df['time'] == row['time']).any():
+            print("Row with this timestamp already exists.")
+        else:
+            df = pandas.concat([df, new_df], ignore_index=True)
+            df.to_csv(csv_file, index=False)            
+    else:
+        # File doesn't exist, create it
+        new_df.to_csv(csv_file, index=False)
 
 
 def get_time(first_tick = 0,
@@ -150,7 +194,17 @@ def get_temp_info(n_hour=(23,10), mapping=pram_to_record):
     
     queries = get_info_matching_rows(reduced_df1,df2,mapping)
     
+
+
+
     fig, ax = make_plot(df1, step_index)
+    He4, He3, ST_current = [list(queries.values())[0][i] for i in ['4He Dump [mBar]',
+                                        '3He Dump [mBar]',
+                                        'Still current [mA]']]
+    
+    fig.suptitle(f'He4: {He4:.1f} mBar - He3: {He3:.1f} mBar\nStill current: {ST_current} mA - sensor: RuOx' )
+    fig.tight_layout()
+    fig.savefig(f'He4{He4:.1f}-He3{He3:.1f}-StillCurrent{ST_current}-RuOx.jpg')
     return queries
     
 def save_to_text(queries,file_name = 'output_data.txt'):
@@ -406,3 +460,38 @@ def fit_quadratic_and_plot(x,
     ax.legend()
     plt.tight_layout()
     return y_eval
+
+
+def make_pretty_table(csv_file):
+# Load the CSV
+    df = pandas.read_csv(csv_file)
+    
+    # Convert all data to strings for formatting
+    df_str = df.astype(str)
+    df_str.columns = df_str.columns.map(str)
+    
+    # Determine max width for each column (header vs content)
+    col_widths = {
+        col: max(len(col), df_str[col].map(len).max())
+        for col in df_str.columns
+    }
+    
+    # Build header row
+    header = "| " + " | ".join(f"{col:<{col_widths[col]}}" for col in df_str.columns) + " |"
+    
+    # Build separator row
+    separator = "|-" + "-|-".join("-" * col_widths[col] for col in df_str.columns) + "-|"
+    
+    # Build each data row
+    rows = [
+        "| " + " | ".join(f"{val:<{col_widths[col]}}" for val, col in zip(row, df_str.columns)) + " |"
+        for row in df_str.values
+    ]
+    
+    # Combine full table
+    table = "\n".join([header, separator] + rows)
+    
+    # Write to file
+    with open("pretty_table.txt", "w") as f:
+        f.write(table)
+    print("✔️ Table with dynamic column spacing saved to 'pretty_table.txt'")
